@@ -62,7 +62,8 @@ export const sendContactEmail = async ({
       `,
     });
   } catch (error) {
-    console.error("Email send failed:", error);
+    console.error("EMAIL DEBUG ERROR:", error);
+
     throw new Error("Email service failed");
   }
 };

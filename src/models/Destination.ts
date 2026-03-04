@@ -95,5 +95,5 @@ DestinationSchema.pre('save', function(next) {
   next();
 });
 
-export default mongoose.model<IDestination>('Destinations', DestinationSchema);
+export default mongoose.model<IDestination>('Destination', DestinationSchema);
 

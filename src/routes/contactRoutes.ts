@@ -3,10 +3,9 @@ import { submitContact } from "../controllers/contactController";
 
 const router = Router();
 
-/**
- * POST /api/contact
- * Public route – Contact Form
- */
-router.post("/contact", submitContact);
+console.log("✅ Contact routes loaded");
+
+router.post("/", submitContact);
+console.log("✅ Contact routes loaded 2");
 
 export default router;

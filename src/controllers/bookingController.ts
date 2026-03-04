@@ -1,12 +1,11 @@
-import { Request, Response } from 'express';
-import mongoose from 'mongoose';
-import Booking from '../models/Booking';
-import Tour from '../models/Tour';
-import Package from '../models/Package';
+import { Request, Response } from "express";
+import pool from "../config/postgres";
 import { sendBookingEmail } from "../utils/sendMail";
 
 export const createBooking = async (req: Request, res: Response): Promise<void> => {
+
   try {
+
     const {
       bookingType,
       itemId,
@@ -19,203 +18,175 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
       travelDate
     } = req.body;
 
-    // ==========================
-    // BASIC VALIDATION
-    // ==========================
-    if (!bookingType || !itemId || !customerName || !customerEmail || !customerPhone || !travelers) {
-      res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields'
-      });
-      return;
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(itemId)) {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid item ID'
-      });
-      return;
-    }
-
-    let item: any;
+    let item;
     let totalPrice = 0;
 
-    // ==========================
-    // TOUR BOOKING LOGIC
-    // ==========================
-    if (bookingType === 'tour') {
+    // TOUR BOOKING
+    if (bookingType === "tour") {
 
-      if (!packageType) {
-        res.status(400).json({
-          success: false,
-          message: 'Tour type (solo, couple, deluxe) is required'
-        });
+      const tour = await pool.query(
+        "SELECT * FROM tours WHERE id=$1 AND status='active'",
+        [itemId]
+      );
+
+      if (tour.rows.length === 0) {
+        res.status(404).json({ success:false, message:"Tour not found"});
         return;
       }
 
-      item = await Tour.findById(itemId);
+      item = tour.rows[0];
 
-      if (!item || item.status !== 'active') {
-        res.status(404).json({
-          success: false,
-          message: 'Tour not found or inactive'
-        });
-        return;
-      }
-
-      const priceMap: any = {
+      const priceMap:any = {
         solo: item.solo,
         couple: item.couple,
         deluxe: item.deluxe
       };
 
-      const selectedPrice = priceMap[packageType];
-
-      if (!selectedPrice) {
-        res.status(400).json({
-          success: false,
-          message: 'Invalid tour type selected'
-        });
-        return;
-      }
-
-      totalPrice = selectedPrice * travelers;
+      totalPrice = priceMap[packageType] * travelers;
     }
 
-    // ==========================
-    // PACKAGE BOOKING LOGIC
-    // ==========================
-    else if (bookingType === 'package') {
+    // PACKAGE BOOKING
+    else {
 
-      item = await Package.findById(itemId);
+      const pkg = await pool.query(
+        "SELECT * FROM packages WHERE id=$1 AND status='active'",
+        [itemId]
+      );
 
-      if (!item || item.status !== 'active') {
-        res.status(404).json({
-          success: false,
-          message: 'Package not found or inactive'
-        });
+      if (pkg.rows.length === 0) {
+        res.status(404).json({ success:false, message:"Package not found"});
         return;
       }
+
+      item = pkg.rows[0];
 
       totalPrice = item.price * travelers;
     }
 
-    else {
-      res.status(400).json({
-        success: false,
-        message: 'Invalid booking type'
-      });
-      return;
-    }
-
-    // ==========================
     // CREATE BOOKING
-    // ==========================
-    const booking = await Booking.create({
+    const result = await pool.query(
+
+      `INSERT INTO bookings
+      (booking_type,item_id,item_title,customer_name,customer_email,
+      customer_phone,travelers,package_type,total_price,message,travel_date)
+
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      RETURNING *`,
+
+      [
+        bookingType,
+        itemId,
+        item.title,
+        customerName,
+        customerEmail,
+        customerPhone,
+        travelers,
+        packageType,
+        totalPrice,
+        message,
+        travelDate
+      ]
+    );
+
+    const booking = result.rows[0];
+
+    // booking reference
+    const bookingRef = `BK-${booking.id.slice(-6).toUpperCase()}`;
+
+    await sendBookingEmail({
+      bookingRef,
       bookingType,
-      itemId,
-      itemTitle: item.title,
+      itemTitle: booking.item_title,
       customerName,
       customerEmail,
       customerPhone,
       travelers,
-      packageType: bookingType === 'tour' ? packageType : undefined,
       totalPrice,
-      message,
-      travelDate
+      message
     });
-    await sendBookingEmail({
-      bookingRef: booking.bookingRef!,      bookingType: booking.bookingType,
-      itemTitle: booking.itemTitle,
-      customerName: booking.customerName,
-      customerEmail: booking.customerEmail,
-      customerPhone: booking.customerPhone,
-      travelers: booking.travelers,
-      totalPrice: booking.totalPrice,
-      message: booking.message,
-    });
+
     res.status(201).json({
-      success: true,
-      message: 'Booking created successfully! We will contact you shortly.',
+      success:true,
+      message:"Booking created successfully",
       data: booking
     });
 
   } catch (error) {
+
     res.status(500).json({
-      success: false,
-      message: 'Server error while creating booking',
-      error: (error as Error).message
+      success:false,
+      message:"Server error",
+      error:(error as Error).message
     });
+
   }
-};
-export const updateBooking = async (req: Request, res: Response): Promise<void> => {
+
+};export const updateBooking = async (req: Request, res: Response): Promise<void> => {
+
   try {
-    const allowedUpdates = ['status', 'paymentStatus', 'notes'];
 
-    const updates: any = {};
+    const { status, paymentStatus, notes } = req.body;
 
-    allowedUpdates.forEach(field => {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
-    });
+    const result = await pool.query(
 
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id,
-      updates,
-      { new: true, runValidators: true }
+      `UPDATE bookings
+      SET status=$1, payment_status=$2, notes=$3, updated_at=now()
+      WHERE id=$4
+      RETURNING *`,
+
+      [status, paymentStatus, notes, req.params.id]
     );
 
-    if (!booking) {
-      res.status(404).json({ success: false, message: 'Booking not found' });
+    if(result.rows.length === 0){
+      res.status(404).json({ success:false, message:"Booking not found"});
       return;
     }
 
-    res.status(200).json({
-      success: true,
-      message: 'Booking updated successfully',
-      data: booking
+    res.json({
+      success:true,
+      data: result.rows[0]
     });
 
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Error updating booking',
-      error: (error as Error).message
-    });
-  }
-};
-export const getBookingStats = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const stats = await Booking.aggregate([
-      {
-        $group: {
-          _id: '$status',
-          count: { $sum: 1 },
-          revenue: { $sum: '$totalPrice' }
-        }
-      }
-    ]);
+  } catch(error){
 
-    const paidRevenue = await Booking.aggregate([
-      { $match: { paymentStatus: 'paid' } },
-      { $group: { _id: null, total: { $sum: '$totalPrice' } } }
-    ]);
-
-    res.status(200).json({
-      success: true,
-      data: {
-        statusBreakdown: stats,
-        totalRevenue: paidRevenue[0]?.total || 0
-      }
-    });
-
-  } catch (error) {
     res.status(500).json({
-      success: false,
-      message: 'Error fetching stats',
-      error: (error as Error).message
+      success:false,
+      message:"Update error"
     });
+
   }
+
+};export const getBookingStats = async (req: Request, res: Response): Promise<void> => {
+
+  try {
+
+    const stats = await pool.query(`
+      SELECT status, COUNT(*) as count, SUM(total_price) as revenue
+      FROM bookings
+      GROUP BY status
+    `);
+
+    const revenue = await pool.query(`
+      SELECT SUM(total_price) as total
+      FROM bookings
+      WHERE payment_status='paid'
+    `);
+
+    res.json({
+      success:true,
+      data:{
+        statusBreakdown: stats.rows,
+        totalRevenue: revenue.rows[0].total || 0
+      }
+    });
+
+  } catch(error){
+
+    res.status(500).json({
+      success:false,
+      message:"Stats error"
+    });
+
+  }
+
 };
