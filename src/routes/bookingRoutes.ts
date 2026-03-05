@@ -7,7 +7,6 @@ import {
   // deleteBooking,
   getBookingStats
 } from '../controllers/bookingController';
-import { protect, authorize } from '../middleware/auth';
 
 const router = Router();
 
@@ -15,13 +14,13 @@ const router = Router();
 router.post('/', createBooking);
 
 // Protected routes (Admin only)
-router.get('/stats', protect, authorize('admin'), getBookingStats);
+router.get('/stats', getBookingStats);
 
 // router.get('/', protect, authorize('admin', 'staff'), getBookings);
 
 // router.get('/:id', protect, authorize('admin', 'staff'), getBookingById);
 
-router.put('/:id', protect, authorize('admin', 'staff'), updateBooking);
+router.put('/:id', updateBooking);
 
 // router.delete('/:id', protect, authorize('admin'), deleteBooking);
 
