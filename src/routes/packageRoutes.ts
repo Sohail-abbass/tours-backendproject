@@ -47,7 +47,7 @@ router.post("/", async (req, res) => {
       slug,
       duration,
       price,
-      currency,
+            currency = "PKR",
       description,
       main_image
     } = req.body;
@@ -62,6 +62,8 @@ router.post("/", async (req, res) => {
 
     res.status(201).json(result.rows[0]);
   } catch (error) {
+      console.error("CREATE ERROR:", error); // 🔥 VERY IMPORTANT
+
     res.status(500).json({ message: "Error creating package" });
   }
 });

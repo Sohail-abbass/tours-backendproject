@@ -7,12 +7,16 @@ const router = Router();
 // GET ALL DESTINATIONS
 router.get("/", async (req, res) => {
   try {
+        console.log("Destinations API hit");
+
     const result = await pool.query(
       "SELECT * FROM destinations ORDER BY created_at DESC"
     );
 
     res.json(result.rows);
   } catch (error) {
+        console.error("DESTINATION ERROR:", error);
+
     res.status(500).json({ message: "Error fetching destinations" });
   }
 });
