@@ -1,28 +1,18 @@
 import { Router } from 'express';
 import {
-  // getBookings,
-  // getBookingById,
+  getBookings,
+  getBookingById,
   createBooking,
   updateBooking,
-  // deleteBooking,
-  getBookingStats
+  deleteBooking
 } from '../controllers/bookingController';
 
 const router = Router();
 
-// Public routes
 router.post('/', createBooking);
-
-// Protected routes (Admin only)
-router.get('/stats', getBookingStats);
-
-// router.get('/', protect, authorize('admin', 'staff'), getBookings);
-
-// router.get('/:id', protect, authorize('admin', 'staff'), getBookingById);
-
-router.put('/:id', updateBooking);
-
-// router.delete('/:id', protect, authorize('admin'), deleteBooking);
+router.get('/', getBookings);
+router.get('/:id', getBookingById);
+router.patch('/:id', updateBooking);
+router.delete('/:id', deleteBooking);
 
 export default router;
-

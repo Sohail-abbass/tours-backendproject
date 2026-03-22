@@ -76,13 +76,31 @@ router.put("/:id", async (req, res) => {
 });
 router.delete("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
 
-    await pool.query("DELETE FROM tours WHERE id = $1", [id]);
+const { id } = req.params;
+    const result = await pool.query(
+      "DELETE FROM tours WHERE id = $1 RETURNING *",
+      [id]
+    );
 
-    res.json({ message: "Tour deleted successfully" });
+    if (result.rowCount === 0) {
+      return res.status(404).json({
+        message: "Tour not found"
+      });
+    }
+
+    res.json({
+      message: "Tour deleted successfully"
+    });
+
   } catch (error) {
-    res.status(500).json({ message: "Error deleting tour" });
+
+    console.error(error);
+
+    res.status(500).json({
+      message: "Error deleting tour"
+    });
+
   }
 });
 

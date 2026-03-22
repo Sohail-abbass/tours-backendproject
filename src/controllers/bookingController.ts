@@ -156,35 +156,94 @@ export const createBooking = async (req: Request, res: Response): Promise<void> 
 
   }
 
-};export const getBookingStats = async (req: Request, res: Response): Promise<void> => {
+};export const getBookings = async (req: Request, res: Response): Promise<void> => {
 
   try {
 
-    const stats = await pool.query(`
-      SELECT status, COUNT(*) as count, SUM(total_price) as revenue
+    const bookings = await pool.query(`
+      SELECT *
       FROM bookings
-      GROUP BY status
-    `);
-
-    const revenue = await pool.query(`
-      SELECT SUM(total_price) as total
-      FROM bookings
-      WHERE payment_status='paid'
+      ORDER BY created_at DESC
     `);
 
     res.json({
-      success:true,
-      data:{
-        statusBreakdown: stats.rows,
-        totalRevenue: revenue.rows[0].total || 0
-      }
+      success: true,
+      data: bookings.rows
     });
 
-  } catch(error){
+  } catch (error) {
 
     res.status(500).json({
-      success:false,
-      message:"Stats error"
+      success: false,
+      message: "Failed to fetch bookings"
+    });
+
+  }
+
+};
+export const getBookingById = async (req: Request, res: Response): Promise<void> => {
+
+  try {
+
+    const { id } = req.params;
+
+    const booking = await pool.query(
+      `SELECT * FROM bookings WHERE id=$1`,
+      [id]
+    );
+
+    if (booking.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "Booking not found"
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: booking.rows[0]
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: "Error fetching booking"
+    });
+
+  }
+
+};
+export const deleteBooking = async (req: Request, res: Response): Promise<void> => {
+
+  try {
+
+    const { id } = req.params;
+
+    const booking = await pool.query(
+      `DELETE FROM bookings WHERE id=$1 RETURNING *`,
+      [id]
+    );
+
+    if (booking.rows.length === 0) {
+      res.status(404).json({
+        success: false,
+        message: "Booking not found"
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      message: "Booking deleted successfully"
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      success: false,
+      message: "Error deleting booking"
     });
 
   }
